@@ -1,154 +1,84 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+<html>
+<body>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-</head>
-<body class="container" style="padding-top:2rem;">
+<button onclick="logout()">Logout</button>
 
-    <header style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-            <h2>Dashboard</h2>
-            <p id="welcome"></p>
-        </div>
+<h2>Employees</h2>
 
-        <button onclick="logout()">Logout</button>
-    </header>
+<form id="form">
+    <input type="hidden" id="id">
 
-    <hr>
+    <input id="fname" placeholder="First Name">
+    <input id="mname" placeholder="Middle Name">
+    <input id="lname" placeholder="Last Name">
 
-    <h2>Laravel Names CRUD API</h2>
+    <button>Save</button>
+</form>
 
-    <article>
-        <header>
-            <span id="form-title">Add New Name</span>
-        </header>
+<hr>
 
-        <form id="crud-form">
-            <input type="hidden" id="entry-id">
-
-            <div class="grid">
-                <input type="text" id="fname" placeholder="First Name" required>
-                <input type="text" id="mname" placeholder="Middle Name">
-                <input type="text" id="lname" placeholder="Last Name" required>
-            </div>
-
-            <button type="submit" id="submit-btn">
-                Save Record
-            </button>
-
-            <button
-                type="button"
-                id="cancel-btn"
-                style="display:none;"
-                onclick="resetForm()">
-                Cancel Edit
-            </button>
-        </form>
-    </article>
-
-    <h3>Saved Names</h3>
-
-    <table>
-        <thead>
-            <tr>
-                <th>First Name</th>
-                <th>Middle Name</th>
-                <th>Last Name</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-
-        <tbody id="data-table-body"></tbody>
-    </table>
+<table border="1">
+    <tbody id="table"></tbody>
+</table>
 
 <script>
 
+// Check if user is logged in
 const user = JSON.parse(localStorage.getItem('user'));
 
 if (!user) {
     window.location.href = '/';
 }
 
-document.getElementById('welcome').innerText =
-    'Welcome, ' + user.name;
-
+// Logout
 function logout() {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     window.location.href = '/';
 }
 
-const form = document.getElementById('crud-form');
+const form = document.getElementById('form');
 
 async function loadTable() {
 
-    try {
+    const res = await fetch('http://127.0.0.1:8000/api/employees');
+    const data = await res.json();
 
-        const response = await fetch(
-            'http://127.0.0.1:8000/api/employees'
-        );
+    let rows = '';
 
-        const data = await response.json();
+    data.forEach(emp => {
+        rows += `
+        <tr>
+            <td>${emp.fname}</td>
+            <td>${emp.mname}</td>
+            <td>${emp.lname}</td>
+            <td>
+                <button onclick="editRow(${emp.id},'${emp.fname}','${emp.mname}','${emp.lname}')">
+                    Edit
+                </button>
 
-        const tbody = document.getElementById('data-table-body');
+                <button onclick="deleteRow(${emp.id})">
+                    Delete
+                </button>
+            </td>
+        </tr>
+        `;
+    });
 
-        tbody.innerHTML = '';
-
-        if (data.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="4" style="text-align:center;">
-                        No records found
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        data.forEach(item => {
-
-            tbody.innerHTML += `
-                <tr>
-                    <td>${item.fname}</td>
-                    <td>${item.mname || '-'}</td>
-                    <td>${item.lname}</td>
-                    <td>
-                        <button onclick="editRow(
-                            ${item.id},
-                            '${item.fname}',
-                            '${item.mname || ''}',
-                            '${item.lname}'
-                        )">
-                            Edit
-                        </button>
-
-                        <button onclick="deleteRow(${item.id})">
-                            Delete
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
-
-    } catch (error) {
-        console.error(error);
-    }
+    document.getElementById('table').innerHTML = rows;
 }
 
-form.addEventListener('submit', async (e) => {
+form.addEventListener('submit', async e => {
 
     e.preventDefault();
 
-    const id = document.getElementById('entry-id').value;
+    const id = document.getElementById('id').value;
 
-    const payload = {
-        fname: document.getElementById('fname').value,
-        mname: document.getElementById('mname').value,
-        lname: document.getElementById('lname').value
+    const data = {
+        fname: fname.value,
+        mname: mname.value,
+        lname: lname.value
     };
 
     const url = id
@@ -157,83 +87,38 @@ form.addEventListener('submit', async (e) => {
 
     const method = id ? 'PUT' : 'POST';
 
-    try {
+    await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    });
 
-        const response = await fetch(url, {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+    form.reset();
+    document.getElementById('id').value = '';
 
-        const data = await response.json();
-
-        console.log(data);
-
-        if (!response.ok) {
-            alert('Failed to save record');
-            return;
-        }
-
-        resetForm();
-        loadTable();
-
-    } catch (error) {
-        console.error(error);
-        alert('Server Error');
-    }
+    loadTable();
 });
 
 function editRow(id, fname, mname, lname) {
 
-    document.getElementById('entry-id').value = id;
+    document.getElementById('id').value = id;
     document.getElementById('fname').value = fname;
     document.getElementById('mname').value = mname;
     document.getElementById('lname').value = lname;
-
-    document.getElementById('form-title').innerText =
-        'Edit Existing Name';
-
-    document.getElementById('submit-btn').innerText =
-        'Update Record';
-
-    document.getElementById('cancel-btn').style.display =
-        'inline-block';
 }
 
 async function deleteRow(id) {
 
-    if (!confirm('Delete this record?')) return;
-
     await fetch(
         `http://127.0.0.1:8000/api/employees/${id}`,
         {
-            method: 'DELETE',
-            headers: {
-                'Accept': 'application/json'
-            }
+            method: 'DELETE'
         }
     );
 
     loadTable();
-}
-
-function resetForm() {
-
-    form.reset();
-
-    document.getElementById('entry-id').value = '';
-
-    document.getElementById('form-title').innerText =
-        'Add New Name';
-
-    document.getElementById('submit-btn').innerText =
-        'Save Record';
-
-    document.getElementById('cancel-btn').style.display =
-        'none';
 }
 
 loadTable();
